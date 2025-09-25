@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manufacturing Job Order Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 { color: #2c3e50; font-size: 2.5rem; margin-bottom: 10px; }
+        .header p { color: #7f8c8d; font-size: 1.1rem; }
+
+        .controls { display: flex; justify-content: center; gap: 15px; margin: 20px 0; flex-wrap: wrap; }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary { background: linear-gradient(45deg, #3498db, #2980b9); color: white; }
+        .btn-department { background: linear-gradient(45deg, #e74c3c, #c0392b); color: white; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); }
+        .btn-active { background: linear-gradient(45deg, #27ae60, #229954) !important; transform: translateY(-2px); }
+
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover { transform: translateY(-5px); }
+        .card h3 { color: #2c3e50; margin-bottom: 15px; font-size: 1.4rem; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+
+        .process-flow { grid-column: 1 / -1; }
+        .flow-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 20px 0; }
+
+        .process-step {
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            min-width: 150px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .process-step:hover { transform: scale(1.05); box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15); }
+        .process-step.active { background: linear-gradient(145deg, #e8f5e8, #d4edda); border-color: #28a745; color: #155724; }
+        .process-step.blocked { background: linear-gradient(145deg, #fee, #fdd); border-color: #dc3545; color: #721c24; }
+
+        .step-number {
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 8px;
+            font-weight: bold;
+        }
+
+        .step-title { font-weight: bold; margin-bottom: 5px; }
+        .step-dept { font-size: 0.8rem; color: #666; margin-bottom: 5px; }
+        .step-status { font-size: 0.75rem; padding: 2px 6px; border-radius: 10px; background: #f8f9fa; color: #6c757d; }
+
+        .arrow { display: flex; align-items: center; color: #3498db; font-size: 1.5rem; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+        
+        .stat-card {
+            background: linear-gradient(145deg, #fff, #f8f9fa);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-number { font-size: 2rem; font-weight: bold; color: #3498db; margin-bottom: 5px; }
+        .stat-label { color: #666; font-size: 0.9rem; }
+
+        .job-list { max-height: 400px; overflow-y: auto; }
+
+        .job-item {
+            background: #f8f9fa;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            transition: all 0.3s ease;
+        }
+
+        .job-item:hover { background: #e9ecef; transform: translateX(5px); }
+        .job-item.urgent { border-left-color: #e74c3c; background: #fef5f5; }
+
+        .job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .job-id { font-weight: bold; color: #2c3e50; }
+        .job-priority { font-size: 0.8rem; padding: 2px 8px; border-radius: 10px; background: #3498db; color: white; }
+        .job-details { font-size: 0.9rem; color: #666; }
+
+        .department-view { display: none; grid-column: 1 / -1; }
+        .department-view.active { display: block; }
+
+        .action-item {
+            background: linear-gradient(145deg, #fff3cd, #ffeaa7);
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #f39c12;
+        }
+
+        .action-item.critical { background: linear-gradient(145deg, #f8d7da, #f5c6cb); border-color: #f5c6cb; border-left-color: #dc3545; }
+
+        .chart-container { position: relative; height: 300px; margin: 20px 0; }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: #e74c3c; }
+
+        .modal h2 { color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+
+        .modal-job {
+            background: #f8f9fa;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .modal-job.urgent { border-left-color: #e74c3c; background: #fef5f5; }
+
+        @media (max-width: 768px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .flow-container { flex-direction: column; align-items: center; }
+            .controls { flex-direction: column; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Manufacturing Job Order Dashboard</h1>
+            <p id="header-subtitle">Real-time tracking of production workflow and department actions</p>
+            <div class="controls">
+                <button class="btn btn-primary btn-active" id="overview-btn">Process Overview</button>
+                <button class="btn btn-department" id="doc-control-btn">Doc Control</button>
+                <button class="btn btn-department" id="finance-btn">Finance</button>
+                <button class="btn btn-department" id="engineering-btn">Engineering</button>
+                <button class="btn btn-department" id="stockroom-btn">Stockroom</button>
+                <button class="btn btn-department" id="production-btn">Production</button>
+                <button class="btn btn-department" id="quality-btn">Quality</button>
+            </div>
+        </div>
+
+        <!-- Overview Section -->
+        <div id="overview-section" class="dashboard-grid">
+            <!-- Process Flow Map -->
+            <div class="card process-flow">
+                <h3>Manufacturing Process Flow</h3>
+                <div class="flow-container">
+                    <div class="process-step" id="step-1">
+                        <div class="step-number">1</div>
+                        <div class="step-title">BOM Review</div>
+                        <div class="step-dept">Doc Control</div>
+                        <div class="step-status" id="step1-status">Active (1)</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="process-step" id="step-2">
+                        <div class="step-number">2</div>
+                        <div class="step-title">Cost Analysis</div>
+                        <div class="step-dept">Finance</div>
+                        <div class="step-status" id="step2-status">Ready</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="process-step" id="step-3">
+                        <div class="step-number">3</div>
+                        <div class="step-title">ENG Review</div>
+                        <div class="step-dept">Engineering</div>
+                        <div class="step-status" id="step3-status">Review (1)</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="process-step" id="step-4">
+                        <div class="step-number">4</div>
+                        <div class="step-title">Job Creation</div>
+                        <div class="step-dept">Doc Control</div>
+                        <div class="step-status" id="step4-status">Ready</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="process-step" id="step-5">
+                        <div class="step-number">5</div>
+                        <div class="step-title">Traveler Release</div>
+                        <div class="step-dept">Doc Control</div>
+                        <div class="step-status" id="step5-status">Ready</div>
+                    </div>
+                </div>
+                <div class="flow-container">
+                    <div class="process-step" id="step-6">
+                        <div class="step-number">6</div>
+                        <div class="step-title">Kitting</div>
+                        <div class="step-dept">Stockroom</div>
+                        <div class="step-status" id="step6-status">Active (2)</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="process-step" id="step-7">
+                        <div class="step-number">7</div>
+                        <div class="step-title">SMT Program</div>
+                        <div class="step-dept">Engineering</div>
+                        <div class="step-status" id="step7-status">Pending (1)</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="process-step" id="step-8">
+                        <div class="step-number">8</div>
+                        <div class="step-title">Pick Program</div>
+                        <div class="step-dept">Engineering</div>
+                        <div class="step-status" id="step8-status">Pending (1)</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="process-step" id="step-9">
+                        <div class="step-number">9</div>
+                        <div class="step-title">Stencil Setup</div>
+                        <div class="step-dept">Engineering</div>
+                        <div class="step-status" id="step9-status">Ready</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Metrics -->
+            <div class="card">
+                <h3>Key Metrics</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-jobs">3</div>
+                        <div class="stat-label">Total Jobs</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="urgent-jobs">3</div>
+                        <div class="stat-label">P9 Priority</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="parts-short">2</div>
+                        <div class="stat-label">Parts Short</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="as9102-required">1</div>
+                        <div class="stat-label">AS9102 Required</div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Priority Jobs -->
+            <div class="card">
+                <h3>High Priority Jobs (P9 September)</h3>
+                <div class="job-list" id="priority-jobs"></div>
+            </div>
+        </div>
+
+        <!-- Department Views -->
+        <div id="doc-control-view" class="department-view card">
+            <h3>Doc Control - Action Items</h3>
+            <div id="doc-control-actions"></div>
+        </div>
+
+        <div id="finance-view" class="department-view card">
+            <h3>Finance - Action Items</h3>
+            <div id="finance-actions"></div>
+        </div>
+
+        <div id="engineering-view" class="department-view card">
+            <h3>Engineering - Action Items</h3>
+            <div id="engineering-actions"></div>
+        </div>
+
+        <div id="stockroom-view" class="department-view card">
+            <h3>Stockroom - Action Items</h3>
+            <div id="stockroom-actions"></div>
+        </div>
+
+        <div id="production-view" class="department-view card">
+            <h3>Production Management - Action Items</h3>
+            <div id="production-actions"></div>
+        </div>
+
+        <div id="quality-view" class="department-view card">
+            <h3>Quality - AS9102 Requirements</h3>
+            <div id="quality-actions"></div>
+        </div>
+    </div>
+
+    <!-- Modal for Step Details -->
+    <div id="step-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="modal-close">&times;</span>
+            <h2 id="modal-title">Step Details</h2>
+            <p id="modal-description"></p>
+            <div id="modal-jobs"></div>
+        </div>
+    </div>
+
+    <script>
+        // Demo Data - Replace with BIRST BI data source
+        const jobData = [
+            {
+                jobOrder: "CO-18156",
+                customer: "SMART WIRES INC",
+                assembly: "P114098 REV 6",
+                rev: "6",
+                qty: 250,
+                status: "CO",
+                priority: "1 P9 Sep",
+                bomReviewed: "",
+                engTravelerReviewed: "",
+                sytlineJobLevel: "",
+                travelerReleased: "",
+                smtProgram: "",
+                pickingProgram: "",
+                stencil: "",
+                stockroomKitting: "",
+                as9102Required: false,
+                woValue: 149675,
+                shipDate: "10/31/25",
+                cwWorkingNotes: "ENG Traveler in peer review. Kit is built, has outside processing that traveler needs to call out.",
+                woType: "New",
+                cablePCB: "PCB"
+            },
+            {
+                jobOrder: "JO-17976A",
+                customer: "IEC INC (BILLERICA)",
+                assembly: "FLR-4133354-1 REV F",
+                rev: "F",
+                qty: 20,
+                status: "Released",
+                priority: "1 P9 Sep",
+                bomReviewed: "Reviewed",
+                engTravelerReviewed: "Routing Created",
+                sytlineJobLevel: "Released",
+                travelerReleased: "Released",
+                smtProgram: "Complete",
+                pickingProgram: "Complete",
+                stencil: "Received",
+                stockroomKitting: "Parts Short",
+                as9102Required: false,
+                woValue: 19371,
+                shipDate: "09/11/25",
+                assignedTo: "JESS",
+                cwWorkingNotes: "BOM regen list 1 completed. Rechecking shortages post regen transfers!",
+                woType: "Repeat",
+                cablePCB: "PCB"
+            },
+            {
+                jobOrder: "0TWO-17776",
+                customer: "DRS HUNTSVILLE",
+                assembly: "PTI-13011529",
+                rev: "X0",
+                qty: 5,
+                status: "Released",
+                priority: "1 P9 Sep",
+                bomReviewed: "Reviewed",
+                engTravelerReviewed: "Routing Created",
+                sytlineJobLevel: "Released",
+                travelerReleased: "Released",
+                smtProgram: "In Progress",
+                pickingProgram: "In Progress",
+                stencil: "",
+                stockroomKitting: "Kitting in Process",
+                as9102Required: true,
+                woValue: 12787,
+                shipDate: "09/26/25",
+                assignedTo: "RM/RS",
+                cwWorkingNotes: "Waiting IQ/OQ/PQ approval & rls. DRS qual required.",
+                woType: "Rev Change",
+                cablePCB: "PCB"
+            }
+        ];
+
+        let currentView = 'overview';
+        let statusChart = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventHandlers();
+            updateProcessFlow();
+            showPriorityJobs();
+            createStatusChart();
+        });
+
+        // Setup event handlers
+        function setupEventHandlers() {
+            document.getElementById('overview-btn').addEventListener('click', showOverview);
+            document.getElementById('doc-control-btn').addEventListener('click', () => showDepartment('doc-control'));
+            document.getElementById('finance-btn').addEventListener('click', () => showDepartment('finance'));
+            document.getElementById('engineering-btn').addEventListener('click', () => showDepartment('engineering'));
+            document.getElementById('stockroom-btn').addEventListener('click', () => showDepartment('stockroom'));
+            document.getElementById('production-btn').addEventListener('click', () => showDepartment('production'));
+            document.getElementById('quality-btn').addEventListener('click', () => showDepartment('quality'));
+            
+            // Process steps
+            document.getElementById('step-1').addEventListener('click', () => showStepDetails(1));
+            document.getElementById('step-2').addEventListener('click', () => showStepDetails(2));
+            document.getElementById('step-3').addEventListener('click', () => showStepDetails(3));
+            document.getElementById('step-4').addEventListener('click', () => showStepDetails(4));
+            document.getElementById('step-5').addEventListener('click', () => showStepDetails(5));
+            document.getElementById('step-6').addEventListener('click', () => showStepDetails(6));
+            document.getElementById('step-7').addEventListener('click', () => showStepDetails(7));
+            document.getElementById('step-8').addEventListener('click', () => showStepDetails(8));
+            document.getElementById('step-9').addEventListener('click', () => showStepDetails(9));
+            
+            // Modal close
+            document.getElementById('modal-close').addEventListener('click', closeStepModal);
+            window.addEventListener('click', function(event) {
+                const modal = document.getElementById('step-modal');
+                if (event.target === modal) closeStepModal();
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') closeStepModal();
+            });
+        }
+
+        // Update process flow
+        function updateProcessFlow() {
+            const stepData = [
+                { id: 'step-1', jobs: jobData.filter(job => !job.bomReviewed && job.status === 'CO'), className: 'blocked' },
+                { id: 'step-2', jobs: [], className: 'active' },
+                { id: 'step-3', jobs: jobData.filter(job => job.engTravelerReviewed === '' && job.bomReviewed === 'Reviewed'), className: 'blocked' },
+                { id: 'step-4', jobs: [], className: 'active' },
+                { id: 'step-5', jobs: [], className: 'active' },
+                { id: 'step-6', jobs: jobData.filter(job => job.stockroomKitting === 'Kitting in Process' || job.stockroomKitting === 'Parts Short'), className: 'active' },
+                { id: 'step-7', jobs: jobData.filter(job => job.smtProgram === 'In Progress' && job.status === 'Released'), className: 'blocked' },
+                { id: 'step-8', jobs: jobData.filter(job => job.pickingProgram === 'In Progress' && job.status === 'Released'), className: 'blocked' },
+                { id: 'step-9', jobs: [], className: 'active' }
+            ];
+
+            stepData.forEach(step => {
+                const element = document.getElementById(step.id);
+                if (element) {
+                    element.className = `process-step ${step.className}`;
+                }
+            });
+        }
+
+        // Show priority jobs
+        function showPriorityJobs() {
+            const priorityJobsContainer = document.getElementById('priority-jobs');
+            const p9Jobs = jobData.filter(job => job.priority && job.priority.includes('P9'));
+
+            priorityJobsContainer.innerHTML = p9Jobs.map(job => `
+                <div class="job-item urgent">
+                    <div class="job-header">
+                        <span class="job-id">${job.jobOrder}</span>
+                        <span class="job-priority">${job.priority}</span>
+                    </div>
+                    <div class="job-details">
+                        <strong>${job.customer}</strong><br>
+                        ${job.assembly} (Qty: ${job.qty})<br>
+                        Ship: ${job.shipDate} | Value: $${job.woValue.toLocaleString()}<br>
+                        Status: ${job.status} | Kitting: ${job.stockroomKitting || 'Not Started'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Create status chart
+        function createStatusChart() {
+            const ctx = document.getElementById('statusChart');
+            if (!ctx) return;
+            
+            if (statusChart) statusChart.destroy();
+            
+            const statusCounts = jobData.reduce((acc, job) => {
+                acc[job.status] = (acc[job.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            statusChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(statusCounts),
+                    datasets: [{
+                        data: Object.values(statusCounts),
+                        backgroundColor: ['#3498db', '#e74c3c', '#f39c12', '#27ae60', '#9b59b6'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+
+        // Navigation functions
+        function showOverview() {
+            document.getElementById('overview-section').style.display = 'grid';
+            document.querySelectorAll('.department-view').forEach(view => view.classList.remove('active'));
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('btn-active'));
+            document.getElementById('overview-btn').classList.add('btn-active');
+            currentView = 'overview';
+        }
+
+        function showDepartment(dept) {
+            document.getElementById('overview-section').style.display = 'none';
+            document.querySelectorAll('.department-view').forEach(view => view.classList.remove('active'));
+            document.getElementById(`${dept}-view`).classList.add('active');
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('btn-active'));
+            document.getElementById(`${dept}-btn`).classList.add('btn-active');
+            loadDepartmentData(dept);
+            currentView = dept;
+        }
+
+        // Load department data
+        function loadDepartmentData(dept) {
+            const actions = {
+                'doc-control': () => loadDocControlActions(),
+                'finance': () => loadFinanceActions(),
+                'engineering': () => loadEngineeringActions(),
+                'stockroom': () => loadStockroomActions(),
+                'production': () => loadProductionActions(),
+                'quality': () => loadQualityActions()
+            };
+            actions[dept]?.();
+        }
+
+        // Department action loaders
+        function loadDocControlActions() {
+            const container = document.getElementById('doc-control-actions');
+            const bomReviewJobs = jobData.filter(job => !job.bomReviewed && job.status === 'CO');
+            
+            let html = '<h4 style="color: #2c3e50; margin-bottom: 15px;">Step 1: BOM Review</h4>';
+            html += bomReviewJobs.map(job => `
+                <div class="action-item critical">
+                    <strong>${job.jobOrder} - ${job.customer}</strong><br>
+                    Assembly: ${job.assembly} REV ${job.rev}<br>
+                    Qty: ${job.qty} | Value: $${job.woValue.toLocaleString()}<br>
+                    <strong>Action: BOM Review Required in SyteLine</strong><br>
+                    <em>Ship Date: ${job.shipDate}</em><br>
+                    <small>Notes: ${job.cwWorkingNotes}</small>
+                </div>
+            `).join('');
+            
+            container.innerHTML = html;
+        }
+
+        function loadFinanceActions() {
+            document.getElementById('finance-actions').innerHTML = 
+                '<div class="action-item"><strong>No pending cost analysis</strong><br>All jobs have completed cost roll analysis.</div>';
+        }
+
+        function loadEngineeringActions() {
+            const container = document.getElementById('engineering-actions');
+            const travelerJobs = jobData.filter(job => !job.engTravelerReviewed && job.bomReviewed === 'Reviewed');
+            const smtJobs = jobData.filter(job => job.smtProgram === 'In Progress' && job.status === 'Released');
+            const pickJobs = jobData.filter(job => job.pickingProgram === 'In Progress' && job.status === 'Released');
+            
+            let html = '<h4 style="color: #2c3e50; margin-bottom: 15px;">Step 3: Traveler Review</h4>';
+            html += travelerJobs.map(job => `
+                <div class="action-item critical">
+                    <strong>${job.jobOrder} - ${job.customer}</strong><br>
+                    Assembly: ${job.assembly}<br>
+                    <strong>Action: Review and Approve Traveler</strong><br>
+                    <em>Ship Date: ${job.shipDate}</em>
+                </div>
+            `).join('');
+            
+            html += '<h4 style="color: #2c3e50; margin: 25px 0 15px 0;">Step 7: SMT Programming</h4>';
+            html += smtJobs.map(job => `
+                <div class="action-item critical">
+                    <strong>${job.jobOrder} - ${job.customer}</strong><br>
+                    Assembly: ${job.assembly}<br>
+                    <strong>Action: Surface Mount Technology Programming</strong><br>
+                    <em>Ship Date: ${job.shipDate}</em>
+                </div>
+            `).join('');
+            
+            html += '<h4 style="color: #2c3e50; margin: 25px 0 15px 0;">Step 8: Pick Programming</h4>';
+            html += pickJobs.map(job => `
+                <div class="action-item critical">
+                    <strong>${job.jobOrder} - ${job.customer}</strong><br>
+                    Assembly: ${job.assembly}<br>
+                    <strong>Action: Pick and Place Programming</strong><br>
+                    <em>Ship Date: ${job.shipDate}</em>
+                </div>
+            `).join('');
+            
+            container.innerHTML = html;
+        }
+
+        function loadStockroomActions() {
+            const container = document.getElementById('stockroom-actions');
+            const actions = jobData.filter(job => job.stockroomKitting === 'Parts Short' || job.stockroomKitting === 'Kitting in Process');
+
+            container.innerHTML = actions.map(job => `
+                <div class="action-item critical">
+                    <strong>${job.jobOrder} - ${job.customer}</strong><br>
+                    Assembly: ${job.assembly} (Qty: ${job.qty})<br>
+                    Status: ${job.stockroomKitting}<br>
+                    ${job.assignedTo ? `Assigned to: ${job.assignedTo}<br>` : ''}
+                    Value: $${job.woValue.toLocaleString()}<br>
+                    <em>Ship Date: ${job.shipDate}</em>
+                </div>
+            `).join('');
+        }
+
+        function loadProductionActions() {
+            document.getElementById('production-actions').innerHTML = 
+                '<div class="action-item"><strong>No jobs ready for production</strong><br>Jobs are still in progress through the preparation workflow.</div>';
+        }
+
+        function loadQualityActions() {
+            const container = document.getElementById('quality-actions');
+            const actions = jobData.filter(job => job.as9102Required);
+
+            container.innerHTML = actions.map(job => `
+                <div class="action-item critical">
+                    <strong>${job.jobOrder} - ${job.customer}</strong><br>
+                    Assembly: ${job.assembly}<br>
+                    AS9102 Documentation Required<br>
+                    <em>Ship Date: ${job.shipDate}</em>
+                </div>
+            `).join('');
+        }
+
+        // Step details modal
+        function showStepDetails(stepNumber) {
+            const stepData = {
+                1: { title: 'BOM Review - Doc Control', jobs: jobData.filter(job => !job.bomReviewed && job.status === 'CO') },
+                2: { title: 'Cost Analysis - Finance', jobs: [] },
+                3: { title: 'Engineering Traveler Review', jobs: jobData.filter(job => !job.engTravelerReviewed && job.bomReviewed === 'Reviewed') },
+                4: { title: 'SyteLine Job Creation - Doc Control', jobs: [] },
+                5: { title: 'Traveler Release - Doc Control', jobs: [] },
+                6: { title: 'Kitting Operations - Stockroom', jobs: jobData.filter(job => job.stockroomKitting === 'Kitting in Process' || job.stockroomKitting === 'Parts Short') },
+                7: { title: 'SMT Programming - Engineering', jobs: jobData.filter(job => job.smtProgram === 'In Progress') },
+                8: { title: 'Pick Programming - Engineering', jobs: jobData.filter(job => job.pickingProgram === 'In Progress') },
+                9: { title: 'Stencil Setup - Engineering', jobs: [] }
+            };
+
+            const step = stepData[stepNumber];
+            document.getElementById('modal-title').textContent = step.title;
+            
+            const jobsContainer = document.getElementById('modal-jobs');
+            if (step.jobs.length === 0) {
+                jobsContainer.innerHTML = '<div class="modal-job"><strong>No active jobs in this step</strong></div>';
+            } else {
+                jobsContainer.innerHTML = step.jobs.map(job => `
+                    <div class="modal-job urgent">
+                        <strong>${job.jobOrder} - ${job.customer}</strong><br>
+                        Assembly: ${job.assembly}<br>
+                        Qty: ${job.qty} | Priority: ${job.priority}<br>
+                        Value: $${job.woValue.toLocaleString()} | Ship: ${job.shipDate}
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('step-modal').style.display = 'block';
+        }
+
+        function closeStepModal() {
+            document.getElementById('step-modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
