@@ -105,7 +105,7 @@
 # #  Acknowledgments
 # #--------------------------------------------------------------------------------
 # 
-# - COSC 1336 at Austin Community College for providing the original project prompts
+# - TAMUCT & AUSTIN COMMUNITY COLLEGE
 # - The Python Community for libraries and documentation
 # 
 # #--------------------------------------------------------------------------------
